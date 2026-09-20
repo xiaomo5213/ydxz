@@ -428,30 +428,28 @@
 <script src="data.js"></script>
 
 <script>
-    // ========== 配置你的 Edge TTS Worker 地址（可选，用于更高质量的发音） ==========
+    // ========== 配置你的 Edge TTS Worker 地址（可选） ==========
     const TTS_WORKER_URL = 'https://tts.xiemojy.mom/v1/audio/speech';
     const USE_TTS_WORKER = false; // 设为 true 则使用 Worker，false 使用浏览器内置语音
 
     let examsData = [];
     let currentPage = 0;
-    let userAnswers = [];        // [ [optIdx, ...], ... ] 每题选项索引
-    let submitted = [];          // [bool, ...]
-    let translateOn = [];        // [bool, ...]
-    let activeSourceIndex = null; // 当前高亮来源的题目索引
+    let userAnswers = [];
+    let submitted = [];
+    let translateOn = [];
+    let activeSourceIndex = null;
     let currentSpeakBtn = null;
     let globalAudio = null;
     let audioUnlocked = false;
 
     const app = document.getElementById('app');
 
-    // ========== 初始化状态 ==========
     function initState() {
         userAnswers = examsData.map(exam => Array(exam.questions.length).fill(null));
         submitted = examsData.map(() => false);
         translateOn = examsData.map(() => false);
     }
 
-    // ========== 音频工具 ==========
     function getGlobalAudio() {
         if (!globalAudio) {
             globalAudio = new Audio();
@@ -474,13 +472,11 @@
             currentSpeakBtn.classList.remove('loading');
             currentSpeakBtn = null;
         }
-        // 同时停止浏览器内置语音
         if ('speechSynthesis' in window) {
             window.speechSynthesis.cancel();
         }
     }
 
-    // ========== 发音（带 Worker 或内置语音） ==========
     async function speakText(text, btnEl) {
         if (currentSpeakBtn === btnEl && globalAudio && !globalAudio.paused) {
             stopSpeech();
@@ -493,7 +489,6 @@
             currentSpeakBtn = btnEl;
         }
 
-        // 方式一：使用 TTS Worker
         if (USE_TTS_WORKER) {
             try {
                 const response = await fetch(TTS_WORKER_URL, {
@@ -540,7 +535,6 @@
             }
         }
 
-        // 方式二：浏览器内置语音
         if ('speechSynthesis' in window) {
             const utterance = new SpeechSynthesisUtterance(text);
             utterance.lang = 'en-US';
@@ -577,7 +571,6 @@
         const isSubmitted = submitted[currentPage];
         const translationOn = translateOn[currentPage];
 
-        // 计算得分（每题2分）
         let correctCount = 0;
         exam.questions.forEach((q, idx) => {
             if (userAnswers[currentPage][idx] === q.answer) correctCount++;
@@ -585,7 +578,6 @@
         const score = correctCount * 2;
         const totalScore = exam.questions.length * 2;
 
-        // 来源高亮句子
         let highlightText = '';
         if (isSubmitted && activeSourceIndex !== null) {
             const q = exam.questions[activeSourceIndex];
@@ -606,7 +598,6 @@
             articleHtml += `<div class="para-block ${colorClass}">`;
 
             if (translationOn) {
-                // 翻译模式：逐句显示 + 中文 + 发音按钮
                 const sentences = p.text.match(/[^.!?]+[.!?]*/g) || [p.text];
                 sentences.forEach((sentence) => {
                     const trimmed = sentence.trim();
@@ -626,7 +617,6 @@
                     articleHtml += `</div>`;
                 });
             } else {
-                // 非翻译模式：整段显示，可能含高亮部分
                 let paraText = p.text;
                 if (highlightText) {
                     const escapedSource = highlightText.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -661,11 +651,13 @@
                 const selectedClass = (userAns === optIdx) ? 'selected' : '';
                 const disabledClass = isSubmitted ? 'disabled' : '';
                 const letter = String.fromCharCode(65 + optIdx); // A, B, C, D
-                quizHtml += `<div class="opt ${selectedClass} ${disabledClass}" data-qid="${qIdx}" data-opt="${optIdx}" onclick="selectOption(this, '${qIdx}', '${optIdx}')">${letter}. ${optText}</div>`;
+                // 检查选项文本是否已包含字母前缀（如 "A."、"B." 等）
+                const hasPrefix = /^[A-D][\.\、\s]/.test(optText.trim());
+                const displayText = hasPrefix ? optText : `${letter}. ${optText}`;
+                quizHtml += `<div class="opt ${selectedClass} ${disabledClass}" data-qid="${qIdx}" data-opt="${optIdx}" onclick="selectOption(this, '${qIdx}', '${optIdx}')">${displayText}</div>`;
             });
             quizHtml += `</div></div>`;
 
-            // 内联详解
             quizHtml += `<div class="explain-inline ${colorClass}" id="explain-${qIdx}" style="display:none;"></div>`;
             quizHtml += `</div>`;
         });
@@ -714,7 +706,6 @@
         bindEvents();
         bindSpeakButtons();
 
-        // 高亮滚动
         if (highlightText) {
             setTimeout(() => {
                 const el = document.querySelector('.highlight-source');
@@ -752,7 +743,6 @@
     function bindEvents() {
         const exam = examsData[currentPage];
 
-        // 翻译切换
         const transBtn = document.getElementById('translateBtn');
         if (transBtn) {
             transBtn.addEventListener('click', () => {
@@ -762,7 +752,6 @@
             });
         }
 
-        // 提交
         const submitBtn = document.getElementById('submitBtn');
         if (submitBtn) {
             submitBtn.addEventListener('click', () => {
@@ -775,14 +764,12 @@
                 activeSourceIndex = null;
                 stopSpeech();
                 render();
-                // 填充详解
                 exam.questions.forEach((q, qIdx) => {
                     fillExplain(qIdx);
                 });
             });
         }
 
-        // 重新作答
         const resetBtn = document.getElementById('resetBtn');
         if (resetBtn) {
             resetBtn.addEventListener('click', () => {
@@ -794,7 +781,6 @@
             });
         }
 
-        // 分页
         const prevBtn = document.getElementById('prevBtn');
         if (prevBtn) {
             prevBtn.addEventListener('click', () => {
@@ -855,7 +841,6 @@
         explainDiv.innerHTML = html;
         explainDiv.style.display = 'block';
 
-        // 绑定来源按钮
         const sourceBtn = explainDiv.querySelector('.source-btn');
         if (sourceBtn) {
             sourceBtn.addEventListener('click', (e) => {
@@ -866,7 +851,6 @@
                     activeSourceIndex = qIdx;
                 }
                 render();
-                // 重新填充详解
                 examsData[currentPage].questions.forEach((_, idx) => fillExplain(idx));
             });
         }
@@ -884,21 +868,17 @@
 
     // ========== 数据加载 ==========
     function loadData() {
-        // exams 和 translationsMap 通过外部 <script> 加载
         if (typeof exams === 'undefined' || !Array.isArray(exams)) {
             app.innerHTML = '<div class="loading">❌ 题库数据加载失败，请检查 data.js</div>';
             return;
         }
-        // 数据适配：data.js 中的 exams 是概段练习格式，这里需要阅读选择的格式
-        // 如果 data.js 是概段格式，请使用对应的阅读选择数据文件
+        // 若 data.js 是概段格式，需替换为阅读选择专用数据；此处假定 data.js 已包含阅读选择数据。
         examsData = exams;
         initState();
         render();
     }
 
-    // 等待 DOM 加载完成
     window.addEventListener('load', () => {
-        // 延迟确保外部脚本加载完成
         setTimeout(loadData, 100);
     });
 </script>
