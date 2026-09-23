@@ -77,6 +77,15 @@
             font-weight: 600;
             color: #0d2e4e;
         }
+
+        /* ===== 控制区：翻译按钮 + 音色选择 ===== */
+        .article-controls {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            flex-wrap: wrap;
+            justify-content: flex-end;
+        }
         .translate-btn {
             background: #eef3fe;
             border: none;
@@ -91,8 +100,35 @@
             font-size: 0.9rem;
             transition: background 0.2s;
             box-shadow: 0 2px 6px rgba(0, 70, 150, 0.08);
+            -webkit-tap-highlight-color: transparent;
         }
         .translate-btn:hover { background: #d9e6ff; }
+        .translate-btn.active {
+            background: #1f4e8c;
+            color: white;
+        }
+
+        /* ===== 音色选择下拉框 ===== */
+        .voice-select {
+            background: #ffffff;
+            border: 1px solid #cfd9e6;
+            padding: 9px 14px;
+            border-radius: 40px;
+            font-size: 0.85rem;
+            color: #1e3e6e;
+            cursor: pointer;
+            outline: none;
+            transition: border-color 0.2s;
+            -webkit-appearance: none;
+            appearance: none;
+            background-image: url("data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22292.4%22%20height%3D%22292.4%22%3E%3Cpath%20fill%3D%22%231e3e6e%22%20d%3D%22M287%2069.4a17.6%2017.6%200%200%200-13-5.4H18.4c-5%200-9.3%201.8-12.9%205.4A17.6%2017.6%200%200%200%200%2082.2c0%205%201.8%209.3%205.4%2012.9l128%20127.9c3.6%203.6%207.8%205.4%2012.8%205.4s9.2-1.8%2012.8-5.4L287%2095c3.5-3.5%205.4-7.8%205.4-12.8%200-5-1.9-9.2-5.5-12.8z%22%2F%3E%3C%2Fsvg%3E");
+            background-repeat: no-repeat;
+            background-position: right 12px center;
+            background-size: 10px;
+            padding-right: 32px;
+            max-width: 180px;
+        }
+        .voice-select:focus { border-color: #1f4e8c; }
 
         /* 段落背景色 */
         .para-block {
@@ -307,14 +343,12 @@
             border-color: #136b9c;
         }
 
-        /* 题目颜色（5色循环） */
         .q-color-1  { background: #fef9e7; border-color: #f0e0b0; }
         .q-color-2  { background: #e8f6ef; border-color: #b8dfc8; }
         .q-color-3  { background: #f3e8fd; border-color: #d9bdf0; }
         .q-color-4  { background: #fde9e9; border-color: #f0bfbf; }
         .q-color-5  { background: #e6f2fc; border-color: #b8d4ee; }
 
-        /* ===== 提交区 ===== */
         .submit-area {
             display: flex;
             gap: 16px;
@@ -346,7 +380,6 @@
             color: #1a3e70;
         }
 
-        /* ===== 底部分页器 ===== */
         .pager-bottom {
             display: flex;
             justify-content: center;
@@ -415,6 +448,20 @@
             .pager-bottom button { padding: 8px 16px; font-size: 0.85rem; }
             .pager-bottom input { width: 55px; padding: 8px 4px; }
             .opt { padding: 10px 14px; font-size: 0.88rem; }
+            /* 手机端：标题、按钮、下拉框换行 */
+            .article-header {
+                flex-direction: column;
+                align-items: flex-start;
+            }
+            .article-controls {
+                width: 100%;
+                justify-content: flex-start;
+            }
+            .voice-select {
+                max-width: 100%;
+                flex: 1;
+                min-width: 130px;
+            }
         }
     </style>
 </head>
@@ -428,9 +475,13 @@
 <script src="data.js"></script>
 
 <script>
-    // ========== 配置你的 Edge TTS Worker 地址（可选） ==========
-    const TTS_WORKER_URL = 'https://tts.xiemojy.mom/v1/audio/speech';
-    const USE_TTS_WORKER = false; // 设为 true 则使用 Worker，false 使用浏览器内置语音
+    // ========== 配置你的 Edge TTS Worker 地址 ==========
+    const TTS_WORKER_URL = 'https://api.xiemojy.mom/v1/audio/speech';
+    const USE_TTS_WORKER = true; // 使用 Cloudflare Worker 合成音频
+
+    // 默认音色（英文）：美式女声 Jenny
+    const DEFAULT_VOICE = 'en-US-JennyNeural';
+    const VOICE_STORAGE_KEY = 'tts_voice_preference_reading_select';
 
     let examsData = [];
     let currentPage = 0;
@@ -443,6 +494,19 @@
     let audioUnlocked = false;
 
     const app = document.getElementById('app');
+
+    // ========== 音色选择（持久化） ==========
+    function loadVoicePreference() {
+        try {
+            const saved = localStorage.getItem(VOICE_STORAGE_KEY);
+            return saved || DEFAULT_VOICE;
+        } catch (e) {
+            return DEFAULT_VOICE;
+        }
+    }
+    function saveVoicePreference(v) {
+        try { localStorage.setItem(VOICE_STORAGE_KEY, v); } catch (e) {}
+    }
 
     function initState() {
         userAnswers = examsData.map(exam => Array(exam.questions.length).fill(null));
@@ -473,7 +537,7 @@
             currentSpeakBtn = null;
         }
         if ('speechSynthesis' in window) {
-            window.speechSynthesis.cancel();
+            try { window.speechSynthesis.cancel(); } catch (e) {}
         }
     }
 
@@ -491,12 +555,13 @@
 
         if (USE_TTS_WORKER) {
             try {
+                const voice = loadVoicePreference();
                 const response = await fetch(TTS_WORKER_URL, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
                         input: text,
-                        voice: 'zh-CN-XiaoxiaoNeural',
+                        voice: voice,
                         speed: 0.95
                     })
                 });
@@ -506,10 +571,15 @@
                 const audioUrl = URL.createObjectURL(blob);
                 const audio = getGlobalAudio();
                 audio.src = audioUrl;
+
                 if (btnEl) {
                     btnEl.classList.remove('loading');
                     btnEl.classList.add('speaking');
                 }
+
+                audio.onended = null;
+                audio.onerror = null;
+
                 audio.onended = () => {
                     if (btnEl) btnEl.classList.remove('speaking');
                     if (currentSpeakBtn === btnEl) currentSpeakBtn = null;
@@ -520,13 +590,18 @@
                     if (currentSpeakBtn === btnEl) currentSpeakBtn = null;
                     URL.revokeObjectURL(audioUrl);
                 };
+
                 try {
                     await audio.play();
                     audioUnlocked = true;
                 } catch (playErr) {
+                    console.error('播放失败:', playErr);
                     if (btnEl) btnEl.classList.remove('speaking');
                     currentSpeakBtn = null;
                     URL.revokeObjectURL(audioUrl);
+                    if (!audioUnlocked) {
+                        alert('请再点击一次发音按钮（微信需激活音频权限）');
+                    }
                 }
                 return;
             } catch (err) {
@@ -535,6 +610,7 @@
             }
         }
 
+        // 回退到浏览器内置语音
         if ('speechSynthesis' in window) {
             const utterance = new SpeechSynthesisUtterance(text);
             utterance.lang = 'en-US';
@@ -553,7 +629,7 @@
                 if (btnEl) btnEl.classList.remove('speaking');
                 if (currentSpeakBtn === btnEl) currentSpeakBtn = null;
             };
-            window.speechSynthesis.cancel();
+            try { window.speechSynthesis.cancel(); } catch (e) {}
             window.speechSynthesis.speak(utterance);
         } else {
             if (btnEl) btnEl.classList.remove('loading');
@@ -588,7 +664,17 @@
         let articleHtml = '';
         articleHtml += `<div class="article-header">`;
         articleHtml += `<h2 id="articleTitle">${exam.articleTitle || exam.session}</h2>`;
-        articleHtml += `<button class="translate-btn" id="translateBtn">🌐 ${translationOn ? '隐藏翻译' : '全文翻译'}</button>`;
+        articleHtml += `<div class="article-controls">`;
+        articleHtml += `<button class="translate-btn ${translationOn ? 'active' : ''}" id="translateBtn">🌐 ${translationOn ? '隐藏翻译' : '全文翻译'}</button>`;
+        articleHtml += `<select class="voice-select" id="voiceSelect" style="display:${translationOn ? '' : 'none'};" title="选择发音音色">`;
+        articleHtml += `<option value="en-US-JennyNeural">👩 美式女声 Jenny</option>`;
+        articleHtml += `<option value="en-US-AriaNeural">👩 美式女声 Aria</option>`;
+        articleHtml += `<option value="en-US-GuyNeural">👨 美式男声 Guy</option>`;
+        articleHtml += `<option value="en-GB-SoniaNeural">👩 英式女声 Sonia</option>`;
+        articleHtml += `<option value="en-GB-RyanNeural">👨 英式男声 Ryan</option>`;
+        articleHtml += `<option value="en-AU-NatashaNeural">👩 澳式女声 Natasha</option>`;
+        articleHtml += `</select>`;
+        articleHtml += `</div>`;
         articleHtml += `</div>`;
 
         const translationDict = (typeof translationsMap !== 'undefined' && translationsMap[exam.session]) || {};
@@ -641,7 +727,6 @@
         exam.questions.forEach((q, qIdx) => {
             const userAns = userAnswers[currentPage][qIdx];
             const colorClass = `q-color-${(qIdx % 5) + 1}`;
-            const hasSource = !!q.sourceSentence;
 
             quizHtml += `<div class="question-wrapper" id="wrapper-${qIdx}">`;
             quizHtml += `<div class="match-item ${colorClass}" data-qid="${qIdx}">`;
@@ -650,8 +735,7 @@
             q.options.forEach((optText, optIdx) => {
                 const selectedClass = (userAns === optIdx) ? 'selected' : '';
                 const disabledClass = isSubmitted ? 'disabled' : '';
-                const letter = String.fromCharCode(65 + optIdx); // A, B, C, D
-                // 检查选项文本是否已包含字母前缀（如 "A."、"B." 等）
+                const letter = String.fromCharCode(65 + optIdx);
                 const hasPrefix = /^[A-D][\.\、\s]/.test(optText.trim());
                 const displayText = hasPrefix ? optText : `${letter}. ${optText}`;
                 quizHtml += `<div class="opt ${selectedClass} ${disabledClass}" data-qid="${qIdx}" data-opt="${optIdx}" onclick="selectOption(this, '${qIdx}', '${optIdx}')">${displayText}</div>`;
@@ -702,6 +786,15 @@
         `;
 
         app.innerHTML = html;
+
+        // 恢复音色选择
+        const voiceSelect = document.getElementById('voiceSelect');
+        if (voiceSelect) {
+            voiceSelect.value = loadVoicePreference();
+            voiceSelect.addEventListener('change', () => {
+                saveVoicePreference(voiceSelect.value);
+            });
+        }
 
         bindEvents();
         bindSpeakButtons();
@@ -872,13 +965,22 @@
             app.innerHTML = '<div class="loading">❌ 题库数据加载失败，请检查 data.js</div>';
             return;
         }
-        // 若 data.js 是概段格式，需替换为阅读选择专用数据；此处假定 data.js 已包含阅读选择数据。
         examsData = exams;
         initState();
         render();
     }
 
+    // iOS 微信音频解锁：页面加载后预播放一段极短的静音音频
+    function unlockIOSAudio() {
+        try {
+            const silent = new Audio('data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQAAAAA=');
+            silent.volume = 0;
+            silent.play().catch(() => {});
+        } catch (e) { /* 忽略 */ }
+    }
+
     window.addEventListener('load', () => {
+        unlockIOSAudio();
         setTimeout(loadData, 100);
     });
 </script>
