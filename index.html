@@ -11,6 +11,8 @@
             background: #f5f7fa;
             padding: 16px;
             color: #1e2a3a;
+            touch-action: manipulation; /* 关闭双击缩放，避免按钮背景被放大 */
+            -webkit-tap-highlight-color: transparent;
         }
         .app {
             max-width: 1400px;
@@ -164,18 +166,36 @@
             align-items: center;
             justify-content: center;
             width: 24px;
+            min-width: 24px;
+            max-width: 24px;
             height: 24px;
+            min-height: 24px;
+            max-height: 24px;
+            aspect-ratio: 1 / 1;
+            box-sizing: border-box;
+            padding: 0;
             background: #e1eaf6;
             border-radius: 50%;
             color: #1e4b8a;
-            font-size: 13px;
+            font-size: 0; /* 图标用 SVG 渲染，禁止文字/emoji 缩放影响 */
+            line-height: 0;
             cursor: pointer;
             flex-shrink: 0;
             transition: background 0.2s;
             user-select: none;
+            -webkit-user-select: none;
+            -webkit-touch-callout: none; /* 禁止 iOS 长按放大镜(loupe) */
             vertical-align: middle;
             margin-left: 6px;
+            overflow: hidden;
+            touch-action: manipulation; /* 禁止双击缩放导致图标视觉变大 */
             -webkit-tap-highlight-color: transparent;
+        }
+        .speaker svg {
+            width: 14px;
+            height: 14px;
+            display: block;
+            pointer-events: none;
         }
         .speaker:hover { background: #c2d6f0; }
         .speaker.speaking { background: #1f4e8c; color: #fff; }
@@ -433,7 +453,7 @@
             color: #7a8b9f;
             text-align: center;
         }
-        .loading {
+        .page-loading {
             text-align: center;
             padding: 60px 20px;
             color: #4a5b6e;
@@ -467,7 +487,7 @@
 </head>
 <body>
 <div class="app" id="app">
-    <div class="loading">⏳ 正在加载题库...</div>
+    <div class="page-loading">⏳ 正在加载题库...</div>
 </div>
 
 <!-- 引入数据文件（先翻译后题库） -->
@@ -640,7 +660,7 @@
     // ========== 渲染 ==========
     function render() {
         if (!examsData.length) {
-            app.innerHTML = '<div class="loading">⚠️ 题库数据为空，请检查 data.js</div>';
+            app.innerHTML = '<div class="page-loading">⚠️ 题库数据为空，请检查 data.js</div>';
             return;
         }
         const exam = examsData[currentPage];
@@ -695,7 +715,7 @@
                     articleHtml += `<div class="sentence-block">`;
                     articleHtml += `<div class="sentence-line ${isHighlight ? 'highlight-source' : ''}">`;
                     articleHtml += `<span class="eng-sentence-text">${trimmed}</span>`;
-                    articleHtml += `<span class="speaker" data-text="${encodeURIComponent(trimmed)}" title="发音">🔊</span>`;
+                    articleHtml += `<span class="speaker" data-text="${encodeURIComponent(trimmed)}" title="发音"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M3 9v6h4l5 5V4L7 9H3z"/><path d="M16.5 12c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02z"/><path d="M14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/></svg></span>`;
                     articleHtml += `</div>`;
                     if (translation) {
                         articleHtml += `<div class="trans-text">${translation}</div>`;
@@ -962,7 +982,7 @@
     // ========== 数据加载 ==========
     function loadData() {
         if (typeof exams === 'undefined' || !Array.isArray(exams)) {
-            app.innerHTML = '<div class="loading">❌ 题库数据加载失败，请检查 data.js</div>';
+            app.innerHTML = '<div class="page-loading">❌ 题库数据加载失败，请检查 data.js</div>';
             return;
         }
         examsData = exams;
